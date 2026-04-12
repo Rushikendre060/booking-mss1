@@ -1,23 +1,26 @@
-# Use official Tomcat 9 with Java 21 pre-installed
-FROM tomcat:9.0.82-jdk21-temurin
+# Use lightweight Java 21 runtime
+FROM eclipse-temurin:21-jdk
 
-# Set maintainer label (optional but good practice)
+# Set maintainer
 LABEL maintainer="rushikeshkendre.369@example.com"
 
-# Remove default ROOT app (optional, keeps container clean)
-RUN rm -rf /usr/local/tomcat/webapps/ROOT
-
-# Create a user for running the application
+# Create non-root user
 RUN useradd -m booking-mss1
 
-# Copy your JAR file into the webapps directory
-COPY ./target/booking-mss1*.war /usr/local/tomcat/webapps/
+# Set working directory
+WORKDIR /app
 
-# Expose the default Tomcat port
-EXPOSE 8080
+# Copy JAR file
+COPY target/booking-mss1*.jar app.jar
 
-# Set the user to 'mbooking-mss1' for security
+# Change ownership (important for non-root)
+RUN chown -R booking-mss1:booking-mss1 /app
+
+# Switch to non-root user
 USER booking-mss1
 
-# Default command to run Tomcat
-CMD ["catalina.sh", "run"]
+# Expose application port (Spring Boot default)
+EXPOSE 8080
+
+# Run the application
+CMD ["java", "-jar", "app.jar"]
