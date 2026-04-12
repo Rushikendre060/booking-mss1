@@ -9,48 +9,62 @@ pipeline {
         maven 'Maven_3.9.6'
     }
 
+    environment {
+        IMAGE_NAME = "booking-mss1"
+        DOCKERHUB_REPO = "rishokendre/booking-mss1"
+        ECR_REPO = "797748030688.dkr.ecr.ap-south-1.amazonaws.com/booking-mss1"
+    }
+
     stages {
 
         stage('Code Compilation') {
             steps {
-                echo 'Starting Code Compilation...'
                 sh 'mvn clean compile'
             }
         }
 
         stage('Code QA Execution') {
             steps {
-                echo 'Running JUnit Test Cases...'
                 sh 'mvn test'
             }
         }
 
         stage('Code Package') {
             steps {
-                echo 'Creating JAR Artifact...'
                 sh 'mvn clean package'
             }
         }
 
-        stage('Build & Tag Docker Image') {
+        stage('Verify Artifact') {
             steps {
-                echo 'Building Docker Image...'
+                sh 'ls -l target/'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
                 sh '''
-                    docker build -t rishokendre/booking-mss1:latest \
-                                 -t booking-mss1:latest .
+                    docker build -t $DOCKERHUB_REPO:latest \
+                                 -t $IMAGE_NAME:latest .
                 '''
+            }
+        }
+
+        stage('Prepare Trivy DB') {
+            steps {
+                sh 'trivy image --download-db-only'
             }
         }
 
         stage('Docker Image Scanning') {
             steps {
-                echo 'Scanning Docker Image with Trivy...'
-                sh '''
-                    if ! trivy image rishokendre/booking-mss1:latest ; then
-                        echo "Trivy Scan Failed - Proceeding with Caution"
-                    fi
-                '''
-                echo 'Docker Image Scanning Completed!'
+                timeout(time: 10, unit: 'MINUTES') {
+                    sh '''
+                        trivy image --severity HIGH,CRITICAL \
+                        --no-progress \
+                        $DOCKERHUB_REPO:latest || true
+                    '''
+                }
             }
         }
 
@@ -61,13 +75,10 @@ pipeline {
                         [credentialsId: 'ecr:ap-south-1:ecr-upload-credentials',
                          url: "https://797748030688.dkr.ecr.ap-south-1.amazonaws.com"]
                     ) {
-                        echo 'Tagging and Pushing Docker Image to ECR...'
                         sh '''
-                            docker images
-                            docker tag booking-mss1:latest 797748030688.dkr.ecr.ap-south-1.amazonaws.com/booking-mss1:latest
-                            docker push 797748030688.dkr.ecr.ap-south-1.amazonaws.com/booking-mss1:latest
+                            docker tag $IMAGE_NAME:latest $ECR_REPO:latest
+                            docker push $ECR_REPO:latest
                         '''
-                        echo 'Docker Image Pushed to Amazon ECR Successfully!'
                     }
                 }
             }
@@ -75,7 +86,6 @@ pipeline {
 
         stage('Cleanup Docker Images') {
             steps {
-                echo 'Cleaning up Docker...'
                 sh 'docker system prune -af'
             }
         }
