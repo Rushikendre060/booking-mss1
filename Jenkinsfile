@@ -13,6 +13,7 @@ pipeline {
         IMAGE_NAME = "booking-mss1"
         DOCKERHUB_REPO = "rishokendre/booking-mss1"
         ECR_REPO = "797748030688.dkr.ecr.ap-south-1.amazonaws.com/booking-mss1"
+        NEXUS_REPO = "52.66.205.116:8085/booking-mss1"
     }
 
     stages {
@@ -64,6 +65,32 @@ pipeline {
                         --no-progress \
                         $DOCKERHUB_REPO:latest || true
                     '''
+                }
+            }
+        }
+
+        // 🔥 NEW STAGE ADDED HERE
+        stage('Upload Docker Image to Nexus') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'nexuscred',
+                        usernameVariable: 'USERNAME',
+                        passwordVariable: 'PASSWORD'
+                    )]) {
+                        sh """
+                            echo "Logging into Nexus Docker Registry..."
+                            docker login http://52.66.205.116:8085 -u $USERNAME -p $PASSWORD
+
+                            echo "Tagging Docker Image..."
+                            docker tag $IMAGE_NAME:latest $NEXUS_REPO:latest
+
+                            echo "Pushing Docker Image..."
+                            docker push $NEXUS_REPO:latest
+
+                            echo "Push Docker Image to Nexus Completed"
+                        """
+                    }
                 }
             }
         }
